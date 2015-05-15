@@ -25,9 +25,13 @@ class temp_sensor:
         #resistance=(float)(1023-a)*10000/a; //get the resistance of the sensor;
         #temperature=1/(log(resistance/10000)/B+1/298.15)-273.15;//convert to temperature via datasheet ;
         a=self.pin.read();
+        #print ("A:",a)
         B=3975
-        resistance=(float)(1023-a)*10000/a #//get the resistance of the sensor;
-        temperature=1/(math.log(resistance/10000)/B+1/298.15)-273.15 #//convert to temperature via datasheet ;
+        if (a<1023):
+            resistance=(float)(1023-a)*10000/a #//get the resistance of the sensor;
+            temperature=1/(math.log(resistance/10000)/B+1/298.15)-273.15 #//convert to temperature via datasheet ;
+        else:
+            temperature=350
         return temperature
 
 class bmx055:   #I2C pin
