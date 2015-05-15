@@ -1,0 +1,148 @@
+#!/usr/bin/env python
+
+import bmx055 as hal
+import logging
+import subprocess
+import signal
+import sys
+import threading
+import time
+
+class Accelerometer(object):
+
+    def __init__(self):
+        # initialize accelerometer
+        self.acc = hal.bmx055()
+        self.acc.init_acc()
+        # acc(x,y,z)
+        self.data = self.norm(self.acc.get_acc())
+        self.weight = 0.8
+        self.postures = [
+            [0,0,1],  # lying & facing up
+            [0,0,-1], # lying & facing down
+            [0,1,0],  # standing
+            [0,-1,0], # upside down
+            [1,0,0],  # lying & facing right
+            [-1,0,0]  # lying & facing left
+        ]
+        self.posture_strings = [
+            "Facing up",
+            "Facing down",
+            "Standing",
+            "Upside down",
+            "Facing right",
+            "Facing left"
+        ]
+        self.exit = False
+        self.polling_interval = 0.2
+
+    @staticmethod
+    def norm(data):
+        return map(lambda x: float(x)/2047 if x >= 0 else float(x)/2048, data)
+
+    def fake_acc(self, filename):
+        logging.debug("Using fake data: %(filename)s" % locals())
+        data = []
+        with open(filename, 'r') as fake_data:
+            for l in fake_data.readlines():
+                data.append(map(int, l.split(',')))
+
+        ctr = 0
+        while True:
+            if ctr >= len(data):
+                logging.debug("*** FAKE DATA END ***")
+                ctr = 0
+#            logging.debug('** %s' % data[ctr])
+            yield data[ctr]
+            ctr += 1
+
+    @staticmethod
+    def mse(p, c):
+        return (p[0]-c[0])**2 + (p[1]-c[1])**2 + (p[2]-c[2])**2
+
+    def update(self):
+        w, nw = self.weight, 1 - self.weight
+#        fake = self.fake_acc('data/xz.txt')
+#        fake = self.fake_acc('data/xy.txt')
+#        fake = self.fake_acc('data/yz.txt')
+        while not self.exit:
+            self.data = map(lambda x, y: x*w+y*nw, self.data, self.norm(self.acc.get_acc()))
+#            self.data = map(lambda x, y: x*w+y*nw, self.data, self.norm(fake.next()))
+            time.sleep(self.polling_interval)
+
+    def terminate(self):
+        self.exit = True
+
+    @property
+    def x(self):
+        return self.data[0]
+
+    @property
+    def y(self):
+        return self.data[1]
+
+    @property
+    def z(self):
+        return self.data[2]
+
+    def dump(self):
+        logging.debug('Current accelerometer x,y,z = %s' % self.data)
+
+    def get_posture(self):
+        # get MSE of current acc to each postures
+        c = self.data
+        pos = min(((x,y) for x,y in enumerate(map(lambda p: self.mse(p, c), self.postures))), key=lambda x: x[1])
+        logging.debug("Posture = %s, Data = (%.3f,%.3f,%.3f)" % (self.posture_strings[pos[0]], self.data[0], self.data[1], self.data[2]))
+        return pos[0]
+
+def send_to_ble(data):
+    cmd_tuple = ["./test-alert", "-r", "simple", "-n", "simple", "1", data]
+    logging.debug("CMD: "+" ".join(cmd_tuple))
+    cmd = subprocess.Popen(cmd_tuple, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    cmd.wait()
+    # check status
+    if cmd.poll() != 0:
+        logging.error("Fail to perform cmd: %s" % " ".join(cmd_tuple))
+        pass
+#        for l in cmd.stderr.readlines():
+#            logging.error('\t%s' % l.strip())
+
+def signal_handler(signal, frame):
+    global terminate
+    terminate = True
+
+if __name__ == "__main__":
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
+            format='%(asctime)s\t%(levelname)s\t%(message)s',)
+
+    terminate = False
+
+    # sensor initialization
+    sensor_w = hal.water_sensor()
+    sensor_temp = hal.temp_sensor()
+
+    POLL_INTERVAL = 1
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    acc = Accelerometer()
+
+    thread_acc = threading.Thread(target = acc.update)
+    thread_acc.start()
+
+    # main loop to iterate through sensors
+    stat = [0] * 3
+    while not terminate:
+        tmp = acc.get_posture(), 1 if sensor_w.get() > 0 else 0, sensor_temp.get()
+        # only send when there's difference
+        if tmp != stat:
+            send_to_ble('%s,%s,%.3f' % (tmp[0], tmp[1], tmp[2]))
+            stat = tmp
+        time.sleep(POLL_INTERVAL)
+
+    # stop accelerometetr thread
+    acc.terminate()
+    thread_acc.join()
+
+    logging.info('GG')
+
