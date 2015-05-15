@@ -2,6 +2,7 @@
 
 import bmx055 as hal
 import logging
+import os
 import subprocess
 import signal
 import sys
@@ -10,7 +11,7 @@ import time
 
 class Accelerometer(object):
 
-    def __init__(self):
+    def __init__(self, fake_file = None):
         # initialize accelerometer
         self.acc = hal.bmx055()
         self.acc.init_acc()
@@ -35,6 +36,7 @@ class Accelerometer(object):
         ]
         self.exit = False
         self.polling_interval = 0.2
+        self.fake_file = fake_file
 
     @staticmethod
     def norm(data):
@@ -62,12 +64,14 @@ class Accelerometer(object):
 
     def update(self):
         w, nw = self.weight, 1 - self.weight
-#        fake = self.fake_acc('data/xz.txt')
-#        fake = self.fake_acc('data/xy.txt')
-#        fake = self.fake_acc('data/yz.txt')
+
+        if self.fake_file:
+            fake = self.fake_acc(self.fake_file)
         while not self.exit:
-            self.data = map(lambda x, y: x*w+y*nw, self.data, self.norm(self.acc.get_acc()))
-#            self.data = map(lambda x, y: x*w+y*nw, self.data, self.norm(fake.next()))
+            if self.fake_file:
+                self.data = map(lambda x, y: x*w+y*nw, self.data, self.norm(fake.next()))
+            else:
+                self.data = map(lambda x, y: x*w+y*nw, self.data, self.norm(self.acc.get_acc()))
             time.sleep(self.polling_interval)
 
     def terminate(self):
@@ -103,7 +107,6 @@ def send_to_ble(data):
     # check status
     if cmd.poll() != 0:
         logging.error("Fail to perform cmd: %s" % " ".join(cmd_tuple))
-        pass
 #        for l in cmd.stderr.readlines():
 #            logging.error('\t%s' % l.strip())
 
@@ -114,6 +117,10 @@ def signal_handler(signal, frame):
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
             format='%(asctime)s\t%(levelname)s\t%(message)s',)
+
+    if len(sys.argv) >= 2 and os.path.isfile(sys.argv[1]):
+        fake_file = sys.argv[1]
+        logging.info("Using recorded accelerometer data from file: %(fake_file)s" % locals())
 
     terminate = False
 
