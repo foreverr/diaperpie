@@ -11,6 +11,8 @@ diaperpie:$_target_folder:0755 \
 diaperpie.cfg:$_target_folder:0644 \
 test-alert:$_target_folder:0755 \
 diaperpie.service:/lib/systemd/system:0644 \
+btup.service:/lib/systemd/system:0644 \
+spp.service:/lib/systemd/system:0644 \
 "
 
 if [ "x$1" == "xtrue" ]; then
@@ -29,3 +31,5 @@ for _f in $_file; do
 done
 
 systemctl enable diaperpie
+systemctl enable btup
+systemctl enable spp
