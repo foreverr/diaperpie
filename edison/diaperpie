@@ -128,7 +128,8 @@ if __name__ == "__main__":
     sensor_w = hal.water_sensor()
     sensor_temp = hal.temp_sensor()
 
-    POLL_INTERVAL = 1
+    polling_inteveral = 1
+    threshold_wet = 10
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -140,12 +141,12 @@ if __name__ == "__main__":
     # main loop to iterate through sensors
     stat = [0] * 3
     while not terminate:
-        tmp = acc.get_posture(), 1 if sensor_w.get() > 0 else 0, sensor_temp.get()
+        tmp = acc.get_posture(), 1 if sensor_w.get() > threshold_wet else 0, sensor_temp.get()
         # only send when there's difference
         if tmp != stat:
             send_to_ble('%s,%s,%.3f' % (tmp[0], tmp[1], tmp[2]))
             stat = tmp
-        time.sleep(POLL_INTERVAL)
+        time.sleep(polling_inteveral)
 
     # stop accelerometetr thread
     acc.terminate()
