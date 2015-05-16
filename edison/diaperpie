@@ -227,11 +227,15 @@ if __name__ == "__main__":
         tmp = acc.get_posture(), 1 if sensor_w.get() > threshold_wet else 0, sensor_temp.get()
         # only send when there's difference
         if tmp != sensor_stat:
+            str_stat = '%s,%s,%.3f' % tuple(tmp)
             if ENABLE_BLE:
-                send_to_ble('%s,%s,%.3f' % tuple(tmp))
+                send_to_ble(str_stat)
             # send when facing down, upside down, wet or temp > 38
             if ENABLE_GCM and (tmp[0] == 1 or tmp[0] == 3 or tmp[1] == 1 or tmp[2] >= 38):
-                send_to_gcm('%s,%s,%.3f' % tuple(tmp))
+                send_to_gcm(str_stat)
+            with open('/tmp/sensors', 'w') as f:
+                f.write(str_stat)
+                f.flush()
             sensor_stat = tmp
         time.sleep(polling_inteveral)
 
