@@ -26,8 +26,8 @@ class Accelerometer(object):
             [0,0,-1], # lying & facing down
             [0,1,0],  # standing
             [0,-1,0], # upside down
-            [1,0,0],  # lying & facing right
-            [-1,0,0]  # lying & facing left
+            [-1,0,0], # lying & facing right
+            [1,0,0]   # lying & facing left
         ]
         self.posture_strings = [
             "Facing up",
