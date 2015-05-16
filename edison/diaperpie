@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import BaseHTTPServer
 import bmx055 as hal
 import logging
 import os
@@ -99,6 +100,16 @@ class Accelerometer(object):
         logging.debug("Posture = %s, Data = (%.3f,%.3f,%.3f)" % (self.posture_strings[pos[0]], self.data[0], self.data[1], self.data[2]))
         return pos[0]
 
+class SensorServer(BaseHTTPServer.BaseHTTPRequestHandler):
+    def do_GET(s):
+        """Respond to a GET request."""
+        global sensor_stat
+        logging.debug("Web from %s: p=%s, w=%s, t=%s" % (s.address_string(),sensor_stat[0], sensor_stat[1], sensor_stat[2]))
+        s.send_response(200)
+        s.send_header("Content-type", "text/plain")
+        s.end_headers()
+        s.wfile.write("%s,%s,%.3f" % tuple(sensor_stat))
+
 def send_to_ble(data):
     cmd_tuple = ["./test-alert", "-r", "simple", "-n", "simple", "1", data]
     logging.debug("Sensor data = %s" % data)
@@ -112,7 +123,18 @@ def send_to_ble(data):
 
 def signal_handler(signal, frame):
     global terminate
+    logging.info('Terminating threads...')
     terminate = True
+
+def run_server():
+    global terminate
+    ip_config = ('', 5678)
+    server_class = BaseHTTPServer.HTTPServer
+    httpd = server_class(ip_config, SensorServer)
+    logging.info("Web service starts - %s:%s" % ip_config)
+    while not terminate:
+        httpd.handle_request()
+    httpd.server_close()
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
@@ -133,24 +155,30 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
+    # sensor status
+    sensor_stat = [0] * 3
+
     acc = Accelerometer()
 
     thread_acc = threading.Thread(target = acc.update)
     thread_acc.start()
 
+    thread_web = threading.Thread(target = run_server)
+    thread_web.start()
+
     # main loop to iterate through sensors
-    stat = [0] * 3
     while not terminate:
         tmp = acc.get_posture(), 1 if sensor_w.get() > threshold_wet else 0, sensor_temp.get()
         # only send when there's difference
-        if tmp != stat:
-            send_to_ble('%s,%s,%.3f' % (tmp[0], tmp[1], tmp[2]))
-            stat = tmp
+        if tmp != sensor_stat:
+            send_to_ble('%s,%s,%.3f' % tuple(tmp))
+            sensor_stat = tmp
         time.sleep(polling_inteveral)
 
     # stop accelerometetr thread
     acc.terminate()
     thread_acc.join()
+    thread_web.join()
 
     logging.info('GG')
 
