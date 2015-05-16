@@ -1,0 +1,15 @@
+[Unit]
+Description=Diaperpie sensor fusion daemon
+After=network.target
+
+[Service]
+Type=forking
+ExecStartPre=/bin/rm -f /var/run/diaperpie.pid
+ExecStart=/usr/bin/python /home/root/edison/diaperpie
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/run/diaperpie.pid
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
