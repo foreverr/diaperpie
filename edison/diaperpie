@@ -2,6 +2,7 @@
 
 import BaseHTTPServer
 import bmx055 as hal
+import json
 import logging
 import os
 import subprocess
@@ -9,6 +10,7 @@ import signal
 import sys
 import threading
 import time
+import urllib2
 
 class Accelerometer(object):
 
@@ -121,6 +123,30 @@ def send_to_ble(data):
 #        for l in cmd.stderr.readlines():
 #            logging.error('\t%s' % l.strip())
 
+def send_to_gcm(s_data):
+    GCM_POST_URL = 'https://android.googleapis.com/gcm/send'
+    API_KEY = 'XXX'
+    A1_GCM_ID = 'YYY'
+    M8_GCM_ID = 'ZZZ'
+    headers = {}
+    headers['Content-Type'] = 'application/json'
+    headers['Authorization'] = 'key=' + API_KEY
+    data = {}
+    data['registration_ids'] = [M8_GCM_ID]
+    data['data'] = {'data': s_data}
+    data = json.dumps(data)
+
+    # post message to GCM
+    try:
+        req = urllib2.Request(GCM_POST_URL, data=data, headers=headers)
+        resp = urllib2.urlopen(req)
+        if resp.code != 200:
+            logging.debug('Failed to push notification, status code: %s', resp.code)
+        else:
+            logging.debug('Success send to GCM')
+    except urllib2.HTTPError as e:
+        logging.error('Failed to push notification, e: %s', e)
+
 def signal_handler(signal, frame):
     global terminate
     logging.info('Terminating threads...')
@@ -137,12 +163,12 @@ def run_server():
     httpd.server_close()
 
 if __name__ == "__main__":
-#    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
-#            format='%(asctime)s\t%(levelname)s\t%(message)s',)
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
+            format='%(asctime)s\t%(levelname)s\t%(message)s',)
 
     # we have sufficient storage space @ home instead of /. so write it here
-    logging.basicConfig(filename='/home/diaperpie_log.txt', level=logging.DEBUG,
-            format='%(asctime)s\t%(levelname)s\t%(message)s', filemode='a')
+#    logging.basicConfig(filename='/home/diaperpie_log.txt', level=logging.DEBUG,
+#            format='%(asctime)s\t%(levelname)s\t%(message)s', filemode='a')
 
     if len(sys.argv) >= 2 and os.path.isfile(sys.argv[1]):
         fake_file = sys.argv[1]
@@ -176,6 +202,9 @@ if __name__ == "__main__":
         # only send when there's difference
         if tmp != sensor_stat:
             send_to_ble('%s,%s,%.3f' % tuple(tmp))
+            # send when facing down, upside down, wet or temp > 38
+            if tmp[0] == 1 or tmp[0] == 3 or tmp[1] == 1 or tmp[2] >= 38:
+                send_to_gcm('%s,%s,%.3f' % tuple(tmp))
             sensor_stat = tmp
         time.sleep(polling_inteveral)
 
