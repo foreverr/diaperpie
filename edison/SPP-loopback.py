@@ -16,115 +16,125 @@ except ImportError:
   import gobject as GObject
 
 class Profile(dbus.service.Object):
-	fd = -1
+    fd = -1
 
-	@dbus.service.method("org.bluez.Profile1",
-					in_signature="", out_signature="")
-	def Release(self):
-		print("Release")
-		mainloop.quit()
+    @dbus.service.method("org.bluez.Profile1",
+                    in_signature="", out_signature="")
+    def Release(self):
+        print("Release")
+        mainloop.quit()
 
-	@dbus.service.method("org.bluez.Profile1",
-					in_signature="", out_signature="")
-	def Cancel(self):
-		print("Cancel")
+    @dbus.service.method("org.bluez.Profile1",
+                    in_signature="", out_signature="")
+    def Cancel(self):
+        print("Cancel")
 
-	@dbus.service.method("org.bluez.Profile1",
-				in_signature="oha{sv}", out_signature="")
-	def NewConnection(self, path, fd, properties):
-		self.fd = fd.take()
-		print("NewConnection(%s, %d)" % (path, self.fd))
-
-
-		server_sock = socket.fromfd(self.fd, socket.AF_UNIX, socket.SOCK_STREAM)
-		server_sock.setblocking(1)
-		server_sock.send("This is Edison SPP loopback test\nAll data will be loopback\nPlease start:\n")
-
-		try:
-		    while True:
-		        data = server_sock.recv(1024)
-		        print("received: %s" % data)
-       		        f = open('/tmp/sensors', 'r')
-                        rsp = f.read()
-			f.close()
-			print("rsp: %s\n" % rsp)
-			server_sock.send("rsp: %s\n" % rsp)
-			#server_sock.send("looping backk: %s\n" % data)
-		except IOError:
-		    print ("IOError")
-		    pass
-
-		server_sock.close()
-		print("all done")
+    @dbus.service.method("org.bluez.Profile1",
+                in_signature="oha{sv}", out_signature="")
+    def NewConnection(self, path, fd, properties):
+        self.fd = fd.take()
+        print("NewConnection(%s, %d)" % (path, self.fd))
 
 
+        server_sock = socket.fromfd(self.fd, socket.AF_UNIX, socket.SOCK_STREAM)
+        server_sock.setblocking(1)
+        server_sock.send("This is Edison SPP loopback test\nAll data will be loopback\nPlease start:\n")
 
-	@dbus.service.method("org.bluez.Profile1",
-				in_signature="o", out_signature="")
-	def RequestDisconnection(self, path):
-		print("RequestDisconnection(%s)" % (path))
+        try:
+            while True:
+                print("start recv\n")
+                data = server_sock.recv(1024)
+                print("received: %s" % data)
+                fsensor = '/tmp/sensors'
+                if os.path.isfile(fsensor):
+                    print("1\n")
+                    f = open(fsensor, 'r')
+                    print("2\n")
+                    rsp = f.readline()
+                    print("3\n")
+                    f.close()
+                    print("rsp: %s\n" % rsp)
+                    server_sock.send("%s" % rsp)
+                    print("4\n")
+                else:
+                    print("sensor file not exists\n")
+                    server_sock.send("z\n")
+                    print("5\n")
+        except IOError:
+            print ("IOError")
+            pass
 
-		if (self.fd > 0):
-			os.close(self.fd)
-			self.fd = -1
+        server_sock.close()
+        print("all done")
+
+
+
+    @dbus.service.method("org.bluez.Profile1",
+                in_signature="o", out_signature="")
+    def RequestDisconnection(self, path):
+        print("RequestDisconnection(%s)" % (path))
+
+        if (self.fd > 0):
+            os.close(self.fd)
+            self.fd = -1
 
 if __name__ == '__main__':
-	dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
-	bus = dbus.SystemBus()
+    bus = dbus.SystemBus()
 
-	manager = dbus.Interface(bus.get_object("org.bluez",
-				"/org/bluez"), "org.bluez.ProfileManager1")
+    manager = dbus.Interface(bus.get_object("org.bluez",
+                "/org/bluez"), "org.bluez.ProfileManager1")
 
-	option_list = [
-			make_option("-C", "--channel", action="store",
-					type="int", dest="channel",
-					default=None),
-			]
+    option_list = [
+            make_option("-C", "--channel", action="store",
+                    type="int", dest="channel",
+                    default=None),
+            ]
 
-	parser = OptionParser(option_list=option_list)
+    parser = OptionParser(option_list=option_list)
 
-	(options, args) = parser.parse_args()
+    (options, args) = parser.parse_args()
 
-	options.uuid = "1101"
-	options.psm = "3"
-	options.role = "server"
-	options.name = "Edison SPP Loopback"
-	options.service = "spp char loopback"
-	options.path = "/foo/bar/profile"
-	options.auto_connect = False
-	options.record = ""
+    options.uuid = "1101"
+    options.psm = "3"
+    options.role = "server"
+    options.name = "Edison SPP Loopback"
+    options.service = "spp char loopback"
+    options.path = "/foo/bar/profile"
+    options.auto_connect = False
+    options.record = ""
 
-	profile = Profile(bus, options.path)
+    profile = Profile(bus, options.path)
 
-	mainloop = GObject.MainLoop()
+    mainloop = GObject.MainLoop()
 
-	opts = {
-			"AutoConnect" :	options.auto_connect,
-		}
+    opts = {
+            "AutoConnect" :    options.auto_connect,
+        }
 
-	if (options.name):
-		opts["Name"] = options.name
+    if (options.name):
+        opts["Name"] = options.name
 
-	if (options.role):
-		opts["Role"] = options.role
+    if (options.role):
+        opts["Role"] = options.role
 
-	if (options.psm is not None):
-		opts["PSM"] = dbus.UInt16(options.psm)
+    if (options.psm is not None):
+        opts["PSM"] = dbus.UInt16(options.psm)
 
-	if (options.channel is not None):
-		opts["Channel"] = dbus.UInt16(options.channel)
+    if (options.channel is not None):
+        opts["Channel"] = dbus.UInt16(options.channel)
 
-	if (options.record):
-		opts["ServiceRecord"] = options.record
+    if (options.record):
+        opts["ServiceRecord"] = options.record
 
-	if (options.service):
-		opts["Service"] = options.service
+    if (options.service):
+        opts["Service"] = options.service
 
-	if not options.uuid:
-		options.uuid = str(uuid.uuid4())
+    if not options.uuid:
+        options.uuid = str(uuid.uuid4())
 
-	manager.RegisterProfile(options.path, options.uuid, opts)
+    manager.RegisterProfile(options.path, options.uuid, opts)
 
-	mainloop.run()
+    mainloop.run()
 

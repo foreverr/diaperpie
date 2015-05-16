@@ -1,0 +1,9 @@
+[Unit]
+Description=BT UP
+After=bluetooth.service
+
+[Service]
+ExecStart=/bin/bash /opt/diaperpie/btup.sh
+
+[Install]
+WantedBy=multi-user.target
