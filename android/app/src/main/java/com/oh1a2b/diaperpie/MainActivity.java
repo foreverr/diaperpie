@@ -17,9 +17,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -40,7 +43,11 @@ import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.utils.ColorTemplate;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.gcm.GoogleCloudMessaging;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -49,6 +56,11 @@ import java.util.UUID;
 
 public class MainActivity extends Activity {
     private final String TAG = "MainActivity";
+
+    public static final String PROPERTY_REG_ID = "registration_id";
+    private static final String PROPERTY_APP_VERSION = "appVersion";
+    private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
+    private static final String SENDER_ID = "351837143960";
 
     private static final String PREF_BLE = "ble";
     private static final int MAX_TEMPERRATURE_COUNT = 10;
@@ -62,12 +74,9 @@ public class MainActivity extends Activity {
     private static final String BLE_ALERT_SERVICE_UUID = "00001811-0000-1000-8000-00805f9b34fb";
     private static final String BLE_ALERT_CHARACTERISTIC = "00002a46-0000-1000-8000-00805f9b34fb";
 
-    private static final int DIRECTION_UPWARD = 1;
-    private static final int DIRECTION_SIDELEFT = 2;
-    private static final int DIRECTION_SIDERIGHT = 3;
-    private static final int DIRECTION_PRONE = 4;
-
     private static final int DIAPER_WET_COLOR = Color.parseColor("#FFEB3B");
+
+    private static final int RECORD_TEMPERATURE_INTERVAL = 60 * 1000; // 1min
 
     private Context mContext;
     private Handler mHandler = new Handler();
@@ -83,6 +92,9 @@ public class MainActivity extends Activity {
     private boolean mServiceConnected = false;
     private boolean mConnected = false;
     private LineChart mChart;
+    private GoogleCloudMessaging mGcm;
+    private String mGcmRegId;
+    private long mPrevRecordTime = 0;
 
     // Code to manage Service lifecycle.
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
@@ -209,11 +221,23 @@ public class MainActivity extends Activity {
             connectToBleService();
         }
 
+        // gcm
+        if (checkPlayServices()) {
+            mGcm = GoogleCloudMessaging.getInstance(this);
+            mGcmRegId = getRegistrationId(mContext);
+            Log.d(TAG, "Device gcm id: " + mGcmRegId);
+            if (mGcmRegId.isEmpty()) {
+                registerInBackground();
+            }
+        } else {
+            Log.i(TAG, "No valid Google Play Services APK found.");
+        }
+
         // FIXME: for test only
         mBabyImageView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                int direction = ((int) (Math.random() * 10) % 4) + 1;
+                int direction = (int) (Math.random() * 10) % 6;
                 int wet = (int) (Math.random() * 10) % 2;
                 Log.d(TAG, "Direction: " + direction + ", wet: " + wet);
                 setBabyImage(direction, wet);
@@ -370,22 +394,37 @@ public class MainActivity extends Activity {
     private void handleCommand(String cmd) {
         //TODO: parse command
         updateConnectionState(cmd);
+        Utils.SensorData sensorData = Utils.parseRawSensorData(cmd);
+        if (sensorData != null) {
+            updateSensorData(sensorData);
+        }
+    }
+
+    private void updateSensorData(Utils.SensorData sensorData) {
+        setBabyImage(sensorData.pose, sensorData.wet);
+        appendSensorData(sensorData.temperature, sensorData.wet);
     }
 
     private void setBabyImage(int direction, int wet) {
         int resourceId;
         switch (direction) {
-            case DIRECTION_UPWARD:
-                resourceId = R.drawable.baby_upward;
+            case Utils.POSE_FACEUP:
+                resourceId = R.drawable.baby_faceup;
                 break;
-            case DIRECTION_SIDELEFT:
-                resourceId = R.drawable.baby_side_left;
+            case Utils.POSE_FACEDOWN:
+                resourceId = R.drawable.baby_facedown;
                 break;
-            case DIRECTION_SIDERIGHT:
-                resourceId = R.drawable.baby_side_right;
+            case Utils.POSE_STANDING:
+                resourceId = R.drawable.baby_standing;
                 break;
-            case DIRECTION_PRONE:
-                resourceId = R.drawable.baby_prone;
+            case Utils.POSE_UPSIZEDOWN:
+                resourceId = R.drawable.baby_upsidedown;
+                break;
+            case Utils.POSE_SIDELEFT:
+                resourceId = R.drawable.baby_sideleft;
+                break;
+            case Utils.POSE_SIDERIGHT:
+                resourceId = R.drawable.baby_sideright;
                 break;
             default:
                 Log.d(TAG, "Could not set baby image, unknown direction: " + direction);
@@ -431,6 +470,11 @@ public class MainActivity extends Activity {
         // update temperature
         mTemperatureTextView.setText(String.format("%.1f\u00B0C", temp));
 
+        long now = System.currentTimeMillis();
+        if ((now - mPrevRecordTime) < RECORD_TEMPERATURE_INTERVAL) {
+            return;
+        }
+        mPrevRecordTime = now;
         // update history
         LineData data = mChart.getData();
         if (data != null) {
@@ -465,5 +509,148 @@ public class MainActivity extends Activity {
                 .setContentIntent(notificationPendingIntent);
         NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         notificationManager.notify(notId, builder.build());
+    }
+
+    // GCM function
+
+    /**
+     * Check the device to make sure it has the Google Play Services APK. If
+     * it doesn't, display a dialog that allows users to download the APK from
+     * the Google Play Store or enable it in the device's system settings.
+     */
+    private boolean checkPlayServices() {
+        int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(this);
+        if (resultCode != ConnectionResult.SUCCESS) {
+            if (GooglePlayServicesUtil.isUserRecoverableError(resultCode)) {
+                GooglePlayServicesUtil.getErrorDialog(resultCode, this,
+                        PLAY_SERVICES_RESOLUTION_REQUEST).show();
+            } else {
+                Log.i(TAG, "This device is not supported.");
+                finish();
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Stores the registration ID and the app versionCode in the application's
+     * {@code SharedPreferences}.
+     *
+     * @param context application's context.
+     * @param regId registration ID
+     */
+    private void storeRegistrationId(Context context, String regId) {
+        final SharedPreferences prefs = getGcmPreferences(context);
+        int appVersion = getAppVersion(context);
+        Log.i(TAG, "Saving regId on app version " + appVersion);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(PROPERTY_REG_ID, regId);
+        editor.putInt(PROPERTY_APP_VERSION, appVersion);
+        editor.commit();
+    }
+
+    /**
+     * Gets the current registration ID for application on GCM service, if there is one.
+     * <p>
+     * If result is empty, the app needs to register.
+     *
+     * @return registration ID, or empty string if there is no existing
+     *         registration ID.
+     */
+    private String getRegistrationId(Context context) {
+        final SharedPreferences prefs = getGcmPreferences(context);
+        String registrationId = prefs.getString(PROPERTY_REG_ID, "");
+        if (registrationId.isEmpty()) {
+            Log.i(TAG, "Registration not found.");
+            return "";
+        }
+        // Check if app was updated; if so, it must clear the registration ID
+        // since the existing regID is not guaranteed to work with the new
+        // app version.
+        int registeredVersion = prefs.getInt(PROPERTY_APP_VERSION, Integer.MIN_VALUE);
+        int currentVersion = getAppVersion(context);
+        if (registeredVersion != currentVersion) {
+            Log.i(TAG, "App version changed.");
+            return "";
+        }
+        Log.d(TAG, "registration ID=" + registrationId);
+        return registrationId;
+    }
+
+    /**
+     * Registers the application with GCM servers asynchronously.
+     * <p>
+     * Stores the registration ID and the app versionCode in the application's
+     * shared preferences.
+     */
+    private void registerInBackground() {
+        new AsyncTask<Void, Void, String>() {
+            @Override
+            protected String doInBackground(Void... params) {
+                String msg = "";
+                try {
+                    if (mGcm == null) {
+                        mGcm = GoogleCloudMessaging.getInstance(mContext);
+                    }
+                    mGcmRegId = mGcm.register(SENDER_ID);
+                    Log.d(TAG, "Device registered, registration ID=" + mGcmRegId);
+
+                    // You should send the registration ID to your server over HTTP, so it
+                    // can use GCM/HTTP or CCS to send messages to your app.
+                    sendRegistrationIdToBackend();
+
+                    // For this demo: we don't need to send it because the device will send
+                    // upstream messages to a server that echo back the message using the
+                    // 'from' address in the message.
+
+                    // Persist the regID - no need to register again.
+                    storeRegistrationId(mContext, mGcmRegId);
+                } catch (IOException ex) {
+                    msg = "Error :" + ex.getMessage();
+                    // If there is an error, don't just keep trying to register.
+                    // Require the user to click a button again, or perform
+                    // exponential back-off.
+                }
+                return msg;
+            }
+
+            @Override
+            protected void onPostExecute(String msg) {
+                Log.d(TAG, "GCM error: " + msg);
+            }
+        }.execute(null, null, null);
+    }
+
+    /**
+     * @return Application's version code from the {@code PackageManager}.
+     */
+    private static int getAppVersion(Context context) {
+        try {
+            PackageInfo packageInfo = context.getPackageManager()
+                    .getPackageInfo(context.getPackageName(), 0);
+            return packageInfo.versionCode;
+        } catch (PackageManager.NameNotFoundException e) {
+            // should never happen
+            throw new RuntimeException("Could not get package name: " + e);
+        }
+    }
+
+    /**
+     * @return Application's {@code SharedPreferences}.
+     */
+    private SharedPreferences getGcmPreferences(Context context) {
+        // This sample app persists the registration ID in shared preferences, but
+        // how you store the regID in your app is up to you.
+        return getSharedPreferences(MainActivity.class.getSimpleName(),
+                Context.MODE_PRIVATE);
+    }
+    /**
+     * Sends the registration ID to your server over HTTP, so it can use GCM/HTTP or CCS to send
+     * messages to your app. Not needed for this demo since the device sends upstream messages
+     * to a server that echoes back the message using the 'from' address in the message.
+     */
+    private void sendRegistrationIdToBackend() {
+        // Your implementation here.
     }
 }

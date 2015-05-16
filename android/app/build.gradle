@@ -21,5 +21,6 @@ android {
 
 dependencies {
     compile 'com.github.PhilJay:MPAndroidChart:v2.1.0'
+    compile 'com.google.android.gms:play-services-gcm:7.3.0'
     compile fileTree(dir: 'libs', include: ['*.jar'])
 }

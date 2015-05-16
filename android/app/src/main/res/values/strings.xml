@@ -5,6 +5,10 @@
     <string name="msg_ble_connecting">Connecting to device %1$s</string>
     <string name="msg_ble_connected">Connect to device %1$s</string>
     <string name="msg_ble_disconnected">Disconnected</string>
+    <string name="warning">Warning</string>
+    <string name="notify_facedown">Baby is facing down!</string>
+    <string name="notify_wet">The diaper is getting wet!</string>
+    <string name="notify_hot">Your baby is feeling hot!</string>
 
     <string name="ble_not_supported">BLE is not supported</string>
     <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
