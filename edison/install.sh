@@ -17,8 +17,8 @@ for _f in $_file; do
   _d="`echo $_f | cut -d ':' -f 2`/$_s"
   _m=`echo $_f | cut -d ':' -f 3`
 
-  echo mv $_s $_d
-  mv $_s $_d
+  echo cp $_s $_d
+  cp $_s $_d
   echo chmod $_m $_d
   chmod $_m $_d
 done
