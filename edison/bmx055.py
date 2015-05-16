@@ -41,8 +41,12 @@ class bmx055:   #I2C pin
     ax=0; ay=0; az=0
     gx=0; gy=0; gz=0
     mx=0; my=0; mz=0
-    def __init__(self):
+
+    def init_I2C(self):
         self.x = m.I2c(0)
+
+    def __init__(self):
+        self.init_I2C()
 
     def delay(self, xx):
         time.sleep(xx/1000.0)
@@ -97,11 +101,25 @@ class bmx055:   #I2C pin
         return xx
 
 
-    def get_acc(self):
+    def get_acc2(self):
         self.ax=self.I2C_Read12bit(ADR_BMA2x2,0x02)
         self.ay=self.I2C_Read12bit(ADR_BMA2x2,0x04)
         self.az=self.I2C_Read12bit(ADR_BMA2x2,0x06)
         return self.ax, self.ay, self.az
+
+    def get_acc(self):
+        i=0
+	while 1:
+            time.sleep(0.2)
+            x,y,z=self.get_acc2()
+            if ((x==0)and(y==0)and(z==0)):
+                #wait ready
+                i=i+1
+                self.init_I2C()
+                self.init_acc()
+                time.sleep(0.2)
+            else:
+                return x,y,z
 
 #=============================================================
     def init_mag(self):
@@ -176,15 +194,31 @@ if __name__ == "__main__":
         self.delay(200); #ms
     """
     #------------------------------------------
+    i=0
     mm=bmx055()
     mm.init_acc_gyr_mag()
-    (ax,ay,az),(gx,gy,gz),(mx,my,mz)=mm.get_acc_gyr_mag()
-    print (ax,ay,az),(gx,gy,gz),(mx,my,mz)
+    #mm.init_acc()
+    while 1:
+        #(ax,ay,az),(gx,gy,gz),(mx,my,mz)=mm.get_acc_gyr_mag()
+        #print (ax,ay,az),(gx,gy,gz),(mx,my,mz)
+        (ax,ay,az)=mm.get_acc()
+        print "A:", (ax,ay,az)
 
-    #Water sensor
-    x=water_sensor() #init
-    print "Water:", x.get() #data
+        #Water sensor
+        x=water_sensor() #init
+        print "Water:", x.get() #data
 
-    #Temp sensor
-    x=temp_sensor() #init
-    print "Temp:",x.get() #data
+        #Temp sensor
+        x=temp_sensor() #init
+        print "Temp:",x.get() #data
+
+        pp=m.Gpio(13) #pin13(LED)
+        #pp=m.Gpio(2)  #pin2
+        pp.dir(m.DIR_OUT)
+        i=i+1
+        if (i&1):
+            pp.write(1)
+        else:
+            pp.write(0)
+        time.sleep(0.2)
+
