@@ -172,7 +172,7 @@ if __name__ == "__main__":
             ENABLE_GCM = True if cfg.get('gcm', 'enable') == 'true' else False
             GCM_API_KEY = cfg.get('gcm', 'api_key') if ENABLE_GCM else None
             GCM_ID = cfg.get('gcm', 'rx_id') if ENABLE_GCM else None
-            ENABLE_BLE = True if cfg.get('ble', 'enable') else False
+            ENABLE_BLE = True if cfg.get('ble', 'enable') == 'true' else False
             ENABLE_HTTP = True if cfg.get('http', 'enable') else False
             LOG_PATH = cfg.get('service', 'log_path')
         else:

@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=forking
 ExecStartPre=/bin/rm -f /var/run/diaperpie.pid
-ExecStart=/bin/sh -c 'cd /opt/diaperpie/;./diaperpie.py'
+ExecStart=/opt/diaperpie/diaperpie
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/var/run/diaperpie.pid
 Restart=always
