@@ -1,13 +1,13 @@
 [Unit]
 Description=SPP Service
-After=bluetooth.service
+After=btup.service
 
 [Service]
 Type=forking
-ExecStartPre=/bin/rm -f /var/run/spp.pid
+ExecStartPre=/bin/rm -f /var/run/sppd.pid
 ExecStart=/usr/bin/python /opt/diaperpie/SPP-loopback.py
 ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/var/run/spp.pid
+PIDFile=/var/run/sppd.pid
 Restart=always
 RestartSec=5s
 
