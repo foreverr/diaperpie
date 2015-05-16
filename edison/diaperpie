@@ -101,7 +101,7 @@ class Accelerometer(object):
 
 def send_to_ble(data):
     cmd_tuple = ["./test-alert", "-r", "simple", "-n", "simple", "1", data]
-    logging.debug("CMD: "+" ".join(cmd_tuple))
+    logging.debug("Sensor data = %s" % data)
     cmd = subprocess.Popen(cmd_tuple, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     cmd.wait()
     # check status
