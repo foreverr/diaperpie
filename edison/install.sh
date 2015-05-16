@@ -18,7 +18,7 @@ spp.service:/lib/systemd/system:0644 \
 "
 
 if [ "x$1" == "xtrue" ]; then
-_file="${_file}\nmraa.py:$_target_folder:0644"
+_file="${_file} mraa.py:$_target_folder:0644"
 fi
 
 for _f in $_file; do
