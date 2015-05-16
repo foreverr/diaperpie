@@ -9,6 +9,8 @@ _file="\
 bmx055.py:$_target_folder:0755 \
 diaperpie:$_target_folder:0755 \
 diaperpie.cfg:$_target_folder:0644 \
+btup.sh:$_target_folder:0755 \
+SPP-loopback.py:$_target_folder:0755 \
 test-alert:$_target_folder:0755 \
 diaperpie.service:/lib/systemd/system:0644 \
 btup.service:/lib/systemd/system:0644 \
