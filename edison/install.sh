@@ -8,6 +8,7 @@ mkdir -p $_target_folder
 _file="\
 bmx055.py:$_target_folder:0755 \
 diaperpie:$_target_folder:0755 \
+diaperpie.cfg:$_target_folder:0644 \
 test-alert:$_target_folder:0755 \
 diaperpie.service:/lib/systemd/system:0644 \
 "
