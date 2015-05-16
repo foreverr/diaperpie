@@ -163,12 +163,12 @@ def run_server():
     httpd.server_close()
 
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
-            format='%(asctime)s\t%(levelname)s\t%(message)s',)
+#    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
+#            format='%(asctime)s\t%(levelname)s\t%(message)s',)
 
     # we have sufficient storage space @ home instead of /. so write it here
-#    logging.basicConfig(filename='/home/diaperpie_log.txt', level=logging.DEBUG,
-#            format='%(asctime)s\t%(levelname)s\t%(message)s', filemode='a')
+    logging.basicConfig(filename='/home/diaperpie_log.txt', level=logging.DEBUG,
+            format='%(asctime)s\t%(levelname)s\t%(message)s', filemode='a')
 
     if len(sys.argv) >= 2 and os.path.isfile(sys.argv[1]):
         fake_file = sys.argv[1]
