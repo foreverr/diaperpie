@@ -178,7 +178,7 @@ if __name__ == "__main__":
         else:
             ENABLE_GCM = False
             ENABLE_BLE = False
-            ENABLE_HTTP = False
+            ENABLE_HTTP = True
             LOG_PATH = None
     except Exception, e:
         print "ERROR: Unable to load configuration from file: %s" % cfg_filename
