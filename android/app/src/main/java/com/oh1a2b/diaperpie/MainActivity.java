@@ -170,7 +170,7 @@ public class MainActivity extends Activity {
         YAxis leftAxis = mChart.getAxisLeft();
         leftAxis.setDrawGridLines(true);
         leftAxis.setStartAtZero(false);
-        leftAxis.setAxisMaxValue(42.0f);
+        leftAxis.setAxisMaxValue(45.0f);
         leftAxis.setAxisMinValue(20.0f);
 
         XAxis xAxis = mChart.getXAxis();
@@ -417,6 +417,11 @@ public class MainActivity extends Activity {
     private void appendSensorData(float temp, int wet) {
         // update temperature
         mTemperatureTextView.setText(String.format("%.1f\u00B0C", temp));
+        if (temp >= Utils.TEMPERATURE_THRESHOLD) {
+            mTemperatureTextView.setTextColor(Color.RED);
+        } else {
+            mTemperatureTextView.setTextColor(Color.BLACK);
+        }
 
         long now = System.currentTimeMillis();
         if ((now - mPrevRecordTime) < RECORD_TEMPERATURE_INTERVAL) {

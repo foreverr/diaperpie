@@ -2,8 +2,8 @@
     <string name="app_name">Diaper Pie</string>
     <string name="action_select_device">Select device</string>
     <string name="msg_unable_connect_ble">Unable to initialize Bluetooth</string>
-    <string name="msg_ble_connecting">Connecting to device %1$s</string>
-    <string name="msg_ble_connected">Connected to device %1$s</string>
+    <string name="msg_ble_connecting">Connecting to %1$s</string>
+    <string name="msg_ble_connected">Connected to %1$s</string>
     <string name="msg_ble_disconnected">Disconnected</string>
     <string name="warning">Warning</string>
     <string name="notify_facedown">Baby is facing down!</string>
