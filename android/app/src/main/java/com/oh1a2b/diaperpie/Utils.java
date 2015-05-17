@@ -23,6 +23,13 @@ public class Utils {
     public static final int NOTIFICATION_ID_WARNING_WET = 101;
     public static final int NOTIFICATION_ID_WARNING_TEMPERATURE = 102;
 
+    public static final int BT_REQUEST_ENABLE = 1001;
+    public static final int BT_SELECT_DEVICE = 1002;
+
+    public static final String EXTRA_KEY_DEVICE_NAME = "device_name";
+    public static final String EXTRA_KEY_DEVICE_ADDRESS = "device_address";
+    public static final String EXTRA_KEY_RAW_DATA = "raw_data";
+
     public static class SensorData {
         public int pose;
         public int wet;

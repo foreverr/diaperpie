@@ -1,21 +1,13 @@
 package com.oh1a2b.diaperpie;
 
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -25,7 +17,6 @@ import android.graphics.Color;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -49,13 +40,12 @@ import com.google.android.gms.gcm.GoogleCloudMessaging;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.UUID;
-
 
 public class MainActivity extends Activity {
     private final String TAG = "MainActivity";
+
+    private static final boolean ENABLE_TEST_MODE = false;
 
     public static final String PROPERTY_REG_ID = "registration_id";
     private static final String PROPERTY_APP_VERSION = "appVersion";
@@ -66,94 +56,64 @@ public class MainActivity extends Activity {
     private static final int MAX_TEMPERRATURE_COUNT = 10;
 
     private static final int REQUEST_ENABLE_BT = 1;
-    private static final int REQUEST_SELECT_DEVICE = 2;
-
-    public static final String EXTRA_KEY_DEVICE_NAME = "device_name";
-    public static final String EXTRA_KEY_DEVICE_ADDRESS = "device_address";
-
-    private static final String BLE_ALERT_SERVICE_UUID = "00001811-0000-1000-8000-00805f9b34fb";
-    private static final String BLE_ALERT_CHARACTERISTIC = "00002a46-0000-1000-8000-00805f9b34fb";
 
     private static final int DIAPER_WET_COLOR = Color.parseColor("#FFEB3B");
 
     private static final int RECORD_TEMPERATURE_INTERVAL = 60 * 1000; // 1min
 
     private Context mContext;
-    private Handler mHandler = new Handler();
     private TextView mTemperatureTextView;
     private ImageView mBabyImageView;
     private TextView mConnectionStatusTextView;
     private LinearLayout mChartLinearLayout;
     private BluetoothAdapter mBluetoothAdapter;
-    private BluetoothLeService mBluetoothLeService;
     private ProgressDialog mWaitingDialog;
     private String mDeviceName;
     private String mDeviceAddress;
-    private boolean mServiceConnected = false;
     private boolean mConnected = false;
+    private boolean mIgnoreData = false;
     private LineChart mChart;
     private GoogleCloudMessaging mGcm;
     private String mGcmRegId;
     private long mPrevRecordTime = 0;
+    private IntentFilter mBTSPPIntentFilter;
 
-    // Code to manage Service lifecycle.
-    private final ServiceConnection mServiceConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName componentName, IBinder service) {
-            mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
-            if (!mBluetoothLeService.initialize()) {
-                Log.e(TAG, "Unable to initialize Bluetooth");
-                Toast.makeText(mContext, R.string.msg_unable_connect_ble, Toast.LENGTH_SHORT).show();
-                return;
-            }
-            // Automatically connects to the device upon successful start-up initialization.
-            mBluetoothLeService.connect(mDeviceAddress);
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName componentName) {
-            mBluetoothLeService = null;
-        }
-    };
-
-    // Handles various events fired by the Service.
-    // ACTION_GATT_CONNECTED: connected to a GATT server.
-    // ACTION_GATT_DISCONNECTED: disconnected from a GATT server.
-    // ACTION_GATT_SERVICES_DISCOVERED: discovered GATT services.
-    // ACTION_DATA_AVAILABLE: received data from the device.  This can be a result of read
-    //                        or notification operations.
-    private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver mBTSPPEventReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
-            Log.d(TAG, "Get gatt action: " + action);
-            if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
+            Log.d(TAG, "Get bt spp action: " + action);
+            if (BluetoothSPPService.ACTION_SPP_CONNECTED.equals(action)) {
+                dismissWaitingDialog();
                 mConnected = true;
+                mDeviceName = intent.getStringExtra(Utils.EXTRA_KEY_DEVICE_NAME);
+                mDeviceAddress = intent.getStringExtra(Utils.EXTRA_KEY_DEVICE_ADDRESS);
+                Log.d(TAG, "bt connected: " + mDeviceName + ", address: " + mDeviceAddress);
+
+                SharedPreferences.Editor editor = mContext.getSharedPreferences(PREF_BLE, 0).edit();
+                editor.putString(Utils.EXTRA_KEY_DEVICE_NAME, mDeviceName);
+                editor.putString(Utils.EXTRA_KEY_DEVICE_ADDRESS, mDeviceAddress);
+                editor.commit();
+
                 updateConnectionState(String.format(mContext.getString(R.string.msg_ble_connected), mDeviceName));
                 invalidateOptionsMenu();
-            } else if (BluetoothLeService.ACTION_GATT_DISCONNECTED.equals(action)) {
+            } else if (BluetoothSPPService.ACTION_SPP_DISCONNECTED.equals(action)) {
                 mConnected = false;
-                mServiceConnected = false;
-                if (mServiceConnection != null) {
-                    unbindService(mServiceConnection);
-                    mBluetoothLeService = null;
-                }
+                mIgnoreData = true;
                 updateConnectionState(mContext.getString(R.string.msg_ble_disconnected));
                 invalidateOptionsMenu();
+            } else if (BluetoothSPPService.ACTION_SPP_DATA_RECEIVED.equals(action)) {
                 dismissWaitingDialog();
-            } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
-                // Show all the supported services and characteristics on the user interface.
-                for (BluetoothGattService service : mBluetoothLeService.getSupportedGattServices()) {
-                    Log.d(TAG, "Find gatt service: " + service.getUuid());
-                    if (service.getUuid().compareTo(UUID.fromString(BLE_ALERT_SERVICE_UUID)) == 0) {
-                        registerService(service);
-                    }
+                if (mIgnoreData) {
+                    return;
                 }
-                dismissWaitingDialog();
-            } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
-                Log.d(TAG, "BLE receiving data: " + intent.getStringExtra(BluetoothLeService.EXTRA_DATA));
-                handleCommand(intent.getStringExtra(BluetoothLeService.EXTRA_DATA));
+                if (!mConnected) {
+                    mConnected = true;
+                    updateConnectionState(String.format(mContext.getString(R.string.msg_ble_connected), mDeviceName));
+                    invalidateOptionsMenu();
+                }
+                String rawData = intent.getStringExtra(Utils.EXTRA_KEY_RAW_DATA);
+                handleCommand(rawData);
             }
         }
     };
@@ -179,6 +139,11 @@ public class MainActivity extends Activity {
             finish();
             return;
         }
+
+        mBTSPPIntentFilter = new IntentFilter();
+        mBTSPPIntentFilter.addAction(BluetoothSPPService.ACTION_SPP_CONNECTED);
+        mBTSPPIntentFilter.addAction(BluetoothSPPService.ACTION_SPP_DISCONNECTED);
+        mBTSPPIntentFilter.addAction(BluetoothSPPService.ACTION_SPP_DATA_RECEIVED);
 
         mChart = new LineChart(mContext);
         //mChart.setTouchEnabled(false);
@@ -215,10 +180,11 @@ public class MainActivity extends Activity {
         mChartLinearLayout.addView(mChart);
 
         // connect to paired device if exist
-        mDeviceName = mContext.getSharedPreferences(PREF_BLE, 0).getString(EXTRA_KEY_DEVICE_NAME, null);
-        mDeviceAddress = mContext.getSharedPreferences(PREF_BLE, 0).getString(EXTRA_KEY_DEVICE_ADDRESS, null);
+        mDeviceName = mContext.getSharedPreferences(PREF_BLE, 0).getString(Utils.EXTRA_KEY_DEVICE_NAME, null);
+        mDeviceAddress = mContext.getSharedPreferences(PREF_BLE, 0).getString(Utils.EXTRA_KEY_DEVICE_ADDRESS, null);
         if (mDeviceName != null && mDeviceAddress != null) {
-            connectToBleService();
+            showWaitingDialog(String.format(mContext.getString(R.string.msg_ble_connecting), mDeviceName));
+            connectBTDevice(mDeviceAddress);
         }
 
         // gcm
@@ -233,17 +199,20 @@ public class MainActivity extends Activity {
             Log.i(TAG, "No valid Google Play Services APK found.");
         }
 
-        // FIXME: for test only
-        mBabyImageView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                int direction = (int) (Math.random() * 10) % 6;
-                int wet = (int) (Math.random() * 10) % 2;
-                Log.d(TAG, "Direction: " + direction + ", wet: " + wet);
-                setBabyImage(direction, wet);
-                appendSensorData(getRandom(2, 35), 0);
-            }
-        });
+
+        if (ENABLE_TEST_MODE) {
+            mBabyImageView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    //int direction = (int) (Math.random() * 10) % 6;
+                    //int wet = (int) (Math.random() * 10) % 2;
+                    //Log.d(TAG, "Direction: " + direction + ", wet: " + wet);
+                    //setBabyImage(direction, wet);
+                    mPrevRecordTime = -1;
+                    appendSensorData(getRandom(2, 35), 0);
+                }
+            });
+        }
     }
 
     @Override
@@ -257,45 +226,49 @@ public class MainActivity extends Activity {
                 startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
             }
         }
-        registerReceiver(mGattUpdateReceiver, makeGattUpdateIntentFilter());
+        registerReceiver(mBTSPPEventReceiver, mBTSPPIntentFilter);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(mGattUpdateReceiver);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mServiceConnected && mBluetoothLeService != null) {
-            unbindService(mServiceConnection);
-            mBluetoothLeService = null;
-        }
+        unregisterReceiver(mBTSPPEventReceiver);
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        // User chose not to enable Bluetooth.
         if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_CANCELED) {
             finish();
             return;
-        } else if (requestCode == REQUEST_SELECT_DEVICE) {
-            if (data != null) {
-                mDeviceName = data.getStringExtra(EXTRA_KEY_DEVICE_NAME);
-                mDeviceAddress = data.getStringExtra(EXTRA_KEY_DEVICE_ADDRESS);
-                Log.d(TAG, "Selected device: " + mDeviceName + ", address: " + mDeviceAddress);
-                if (mDeviceName != null && mDeviceAddress != null) {
-                    SharedPreferences.Editor editor = mContext.getSharedPreferences(PREF_BLE, 0).edit();
-                    editor.putString(EXTRA_KEY_DEVICE_NAME, mDeviceName);
-                    editor.putString(EXTRA_KEY_DEVICE_ADDRESS, mDeviceAddress);
-                    editor.commit();
-                    connectToBleService();
-                }
+        } else if (requestCode == Utils.BT_SELECT_DEVICE) {
+            if (resultCode == Activity.RESULT_OK) {
+                // Get the device info and MAC address
+                String info = data.getExtras().getString(DeviceListActivity.EXTRA_DEVICE_INFO);
+                String address = data.getExtras().getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
+                showWaitingDialog(String.format(mContext.getString(R.string.msg_ble_connecting), info));
+                connectBTDevice(address);
             }
+            return;
         }
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void connectBTDevice(String address) {
+        mConnected = false;
+        mIgnoreData = false;
+        Intent intent = new Intent(MainActivity.this, BluetoothSPPService.class);
+        intent.putExtra(Utils.EXTRA_KEY_DEVICE_ADDRESS, address);
+        startService(intent);
+    }
+
+    private void disconnectBTDevice() {
+        // stop service
+        Intent intent = new Intent(MainActivity.this, BluetoothSPPService.class);
+        stopService(intent);
+
+        mConnected = false;
+        updateConnectionState(mContext.getString(R.string.msg_ble_disconnected));
+        invalidateOptionsMenu();
     }
 
     @Override
@@ -314,26 +287,19 @@ public class MainActivity extends Activity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_select_device:
-                final Intent intent = new Intent(this, DeviceScanActivity.class);
-                startActivityForResult(intent, REQUEST_SELECT_DEVICE);
+                Intent serverIntent = new Intent(this, DeviceListActivity.class);
+                startActivityForResult(serverIntent, Utils.BT_SELECT_DEVICE);
                 return true;
             case R.id.menu_disconnect:
-                mBluetoothLeService.disconnect();
+                // stop bluetooth service
+                disconnectBTDevice();
+                mContext.getSharedPreferences(PREF_BLE, 0).edit().clear().commit();
                 return true;
             case android.R.id.home:
                 onBackPressed();
                 return true;
         }
         return super.onOptionsItemSelected(item);
-    }
-
-    private static IntentFilter makeGattUpdateIntentFilter() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(BluetoothLeService.ACTION_GATT_CONNECTED);
-        intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
-        intentFilter.addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED);
-        intentFilter.addAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
-        return intentFilter;
     }
 
     private void showWaitingDialog(String msg) {
@@ -364,36 +330,10 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void connectToBleService() {
-        mConnected = false;
-        showWaitingDialog(String.format(mContext.getString(R.string.msg_ble_connecting), mDeviceName));
-        if (!mServiceConnected) {
-            final Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
-            bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
-            mServiceConnected = true;
-        }
-    }
-
-    private void registerService(BluetoothGattService service) {
-        for (BluetoothGattCharacteristic chara : service.getCharacteristics()) {
-            Log.d(TAG, "BLE characteristic: " + chara.getUuid());
-            if (chara.getUuid().compareTo(UUID.fromString(BLE_ALERT_CHARACTERISTIC)) == 0) {
-                final int charaProp = chara.getProperties();
-                //if ((charaProp | BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
-                //    Log.d(TAG, "Characteristic support read");
-                //    mBluetoothLeService.readCharacteristic(chara);
-                //}
-                if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
-                    mBluetoothLeService.setCharacteristicNotification(chara, true);
-                    Log.d(TAG, "Set notification for chara: " + chara.getUuid());
-                }
-            }
-        }
-    }
-
     private void handleCommand(String cmd) {
-        //TODO: parse command
-        updateConnectionState(cmd);
+        if (ENABLE_TEST_MODE) {
+            updateConnectionState(cmd);
+        }
         Utils.SensorData sensorData = Utils.parseRawSensorData(cmd);
         if (sensorData != null) {
             updateSensorData(sensorData);
@@ -497,21 +437,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void pushNotification(int notId, String title, String msg) {
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        PendingIntent notificationPendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
-        Notification.Builder builder = new Notification.Builder(this);
-        builder.setSmallIcon(R.mipmap.ic_launcher)
-                .setDefaults(Notification.DEFAULT_ALL)
-                .setAutoCancel(true)
-                .setContentTitle(title)
-                .setContentText(msg)
-                .setContentIntent(notificationPendingIntent);
-        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.notify(notId, builder.build());
-    }
-
-    // GCM function
+    // =============== GCM function ===================
 
     /**
      * Check the device to make sure it has the Google Play Services APK. If
