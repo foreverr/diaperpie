@@ -16,7 +16,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -59,7 +58,7 @@ public class MainActivity extends Activity {
 
     private static final int DIAPER_WET_COLOR = Color.parseColor("#FFEB3B");
 
-    private static final int RECORD_TEMPERATURE_INTERVAL = 60 * 1000; // 1min
+    private static final int RECORD_TEMPERATURE_INTERVAL = 10 * 1000; // 10 seconds
 
     private Context mContext;
     private TextView mTemperatureTextView;
@@ -98,6 +97,14 @@ public class MainActivity extends Activity {
                 updateConnectionState(String.format(mContext.getString(R.string.msg_ble_connected), mDeviceName));
                 invalidateOptionsMenu();
             } else if (BluetoothSPPService.ACTION_SPP_DISCONNECTED.equals(action)) {
+                boolean reconnect = intent.getBooleanExtra(Utils.EXTRA_KEY_RECONNECT, false);
+                Log.d(TAG, "Disconnected, need reconnect: " + reconnect);
+                if (reconnect) {
+                    if (mDeviceName != null && mDeviceAddress != null) {
+                        connectBTDevice(mDeviceAddress);
+                        return;
+                    }
+                }
                 mConnected = false;
                 mIgnoreData = true;
                 updateConnectionState(mContext.getString(R.string.msg_ble_disconnected));
@@ -155,7 +162,7 @@ public class MainActivity extends Activity {
         mChart.setHighlightEnabled(true);
         mChart.setDescription("");
         mChart.setDescriptionColor(Color.BLACK);
-        mChart.setNoDataTextDescription("No any temperature data");
+        mChart.setNoDataTextDescription(mContext.getString(R.string.no_temp_data));
 
         YAxis rightAxis = mChart.getAxisRight();
         rightAxis.setEnabled(false);
@@ -164,7 +171,7 @@ public class MainActivity extends Activity {
         leftAxis.setDrawGridLines(true);
         leftAxis.setStartAtZero(false);
         leftAxis.setAxisMaxValue(42.0f);
-        leftAxis.setAxisMinValue(32.0f);
+        leftAxis.setAxisMinValue(20.0f);
 
         XAxis xAxis = mChart.getXAxis();
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
@@ -254,6 +261,7 @@ public class MainActivity extends Activity {
     }
 
     private void connectBTDevice(String address) {
+        Log.d(TAG, "bt connect to device: " + address);
         mConnected = false;
         mIgnoreData = false;
         Intent intent = new Intent(MainActivity.this, BluetoothSPPService.class);

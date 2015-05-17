@@ -59,6 +59,7 @@ public class BluetoothSPPService extends Service {
                 Runnable runnable = new Runnable() {
                     @Override
                     public void run() {
+                        boolean reconnect = false;
                         Log.d(TAG, "bt is connected: " + BluetoothService.isConnected());
                         if (!BluetoothService.isConnected()) {
                             for (int i = 0; i < 10; i++) {
@@ -75,6 +76,7 @@ public class BluetoothSPPService extends Service {
                             }
                         }
                         if (BluetoothService.isConnected()) {
+                            reconnect = true;
                             try {
                                 InputStreamReader in = new InputStreamReader(BluetoothService.getInputSteam());
                                 BufferedReader buf = new BufferedReader(in);
@@ -92,7 +94,7 @@ public class BluetoothSPPService extends Service {
                                 e.printStackTrace();
                             }
                         }
-                        broadcastDisconnectedEvent();
+                        broadcastDisconnectedEvent(reconnect);
                     }
                 };
                 Thread th = new Thread(runnable);
@@ -118,7 +120,7 @@ public class BluetoothSPPService extends Service {
         if (BluetoothService.isConnected()) {
             BluetoothService.disconnect();
         }
-        broadcastDisconnectedEvent();
+        broadcastDisconnectedEvent(false);
         super.onDestroy();
     }
 
@@ -134,8 +136,9 @@ public class BluetoothSPPService extends Service {
         sendBroadcast(intent);
     }
 
-    private void broadcastDisconnectedEvent() {
+    private void broadcastDisconnectedEvent(boolean reconnect) {
         final Intent intent = new Intent(ACTION_SPP_DISCONNECTED);
+        intent.putExtra(Utils.EXTRA_KEY_RECONNECT, reconnect);
         sendBroadcast(intent);
     }
 
