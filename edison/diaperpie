@@ -306,7 +306,7 @@ if __name__ == "__main__":
                 sensor_stat = tmp
                 logging.debug("sensor data: p=%s, w=%s, t=%s" % (sensor_stat[0], sensor_stat[1], sensor_stat[2]))
             now = datetime.now()
-            ts = '%s:%s' % (now.hour, divmod(now.minute,1)[0] * 1)
+            ts = '%02d:%02d' % (now.hour, divmod(now.minute,1)[0] * 1)
             if history_data[-1][0] == ts:
                 history_data[-1][1] = max(sensor_stat[2], history_data[-1][1])
                 history_data[-1][2] = max(sensor_stat[1], history_data[-1][2])
