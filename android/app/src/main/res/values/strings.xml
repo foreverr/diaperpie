@@ -9,6 +9,7 @@
     <string name="notify_facedown">Baby is facing down!</string>
     <string name="notify_wet">The diaper is getting wet!</string>
     <string name="notify_hot">Your baby is feeling hot!</string>
+    <string name="notify_missing">Your baby is leaving!</string>
     <string name="no_temp_data">No any temperature data</string>
     <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
     <string name="disconnected">Disconnected</string>

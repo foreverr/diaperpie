@@ -84,6 +84,9 @@ public class Utils {
         if (sensorData == null) {
             return;
         }
+        if (sensorData.pose == Utils.POSE_MISSING) {
+            Utils.pushNotification(context, Utils.NOTIFICATION_ID_WARNING_POSE, R.string.warning, R.string.notify_missing);
+        }
         if (sensorData.pose == Utils.POSE_FACEDOWN) {
             Utils.pushNotification(context, Utils.NOTIFICATION_ID_WARNING_POSE, R.string.warning, R.string.notify_facedown);
         }

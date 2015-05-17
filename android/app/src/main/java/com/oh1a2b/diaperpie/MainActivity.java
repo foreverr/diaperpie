@@ -71,6 +71,7 @@ public class MainActivity extends Activity {
     private String mDeviceAddress;
     private boolean mConnected = false;
     private boolean mIgnoreData = false;
+    private boolean mForceDisconnect = false;
     private LineChart mChart;
     private GoogleCloudMessaging mGcm;
     private String mGcmRegId;
@@ -85,6 +86,7 @@ public class MainActivity extends Activity {
             if (BluetoothSPPService.ACTION_SPP_CONNECTED.equals(action)) {
                 dismissWaitingDialog();
                 mConnected = true;
+                mForceDisconnect = false;
                 mDeviceName = intent.getStringExtra(Utils.EXTRA_KEY_DEVICE_NAME);
                 mDeviceAddress = intent.getStringExtra(Utils.EXTRA_KEY_DEVICE_ADDRESS);
                 Log.d(TAG, "bt connected: " + mDeviceName + ", address: " + mDeviceAddress);
@@ -108,6 +110,10 @@ public class MainActivity extends Activity {
                 mConnected = false;
                 mIgnoreData = true;
                 setBabyImage(Utils.POSE_MISSING, 0);
+                if (!mForceDisconnect) {
+                    Utils.SensorData sensorData = new Utils.SensorData(Utils.POSE_MISSING, 0, 30);
+                    Utils.notifyWarnings(mContext, sensorData);
+                }
                 updateConnectionState(mContext.getString(R.string.msg_ble_disconnected));
                 invalidateOptionsMenu();
             } else if (BluetoothSPPService.ACTION_SPP_DATA_RECEIVED.equals(action)) {
@@ -301,6 +307,7 @@ public class MainActivity extends Activity {
                 return true;
             case R.id.menu_disconnect:
                 // stop bluetooth service
+                mForceDisconnect = true;
                 disconnectBTDevice();
                 mContext.getSharedPreferences(PREF_BLE, 0).edit().clear().commit();
                 return true;
