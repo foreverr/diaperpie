@@ -54,7 +54,7 @@ class Profile(dbus.service.Object):
                     print("3\n")
                     f.close()
                     print("rsp: %s\n" % rsp)
-                    server_sock.send("%s" % rsp)
+                    server_sock.send("%s\n" % rsp)
                     print("4\n")
                 else:
                     print("sensor file not exists\n")
