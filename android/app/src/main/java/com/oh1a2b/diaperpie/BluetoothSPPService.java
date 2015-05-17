@@ -22,6 +22,7 @@ public class BluetoothSPPService extends Service {
 
     private String mDeviceName;
     private String mDeviceAddress;
+    private boolean mStopping = false;
 
     public class LocalBinder extends Binder {
         BluetoothSPPService getService() {
@@ -94,7 +95,7 @@ public class BluetoothSPPService extends Service {
                                 e.printStackTrace();
                             }
                         }
-                        broadcastDisconnectedEvent(reconnect);
+                        broadcastDisconnectedEvent(!mStopping && reconnect);
                     }
                 };
                 Thread th = new Thread(runnable);
@@ -106,6 +107,7 @@ public class BluetoothSPPService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        mStopping = false;
         mDeviceAddress = intent.getStringExtra(Utils.EXTRA_KEY_DEVICE_ADDRESS);
         Log.d(TAG, "Connect to device address: " + mDeviceAddress);
         if (BluetoothService.isConnected()) {
@@ -117,6 +119,7 @@ public class BluetoothSPPService extends Service {
 
     @Override
     public void onDestroy() {
+        mStopping = true;
         if (BluetoothService.isConnected()) {
             BluetoothService.disconnect();
         }

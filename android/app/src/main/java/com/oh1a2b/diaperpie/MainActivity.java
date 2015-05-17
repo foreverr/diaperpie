@@ -107,6 +107,7 @@ public class MainActivity extends Activity {
                 }
                 mConnected = false;
                 mIgnoreData = true;
+                setBabyImage(Utils.POSE_MISSING, 0);
                 updateConnectionState(mContext.getString(R.string.msg_ble_disconnected));
                 invalidateOptionsMenu();
             } else if (BluetoothSPPService.ACTION_SPP_DATA_RECEIVED.equals(action)) {
@@ -354,6 +355,13 @@ public class MainActivity extends Activity {
     }
 
     private void setBabyImage(int direction, int wet) {
+        if (direction == Utils.POSE_MISSING) {
+            mBabyImageView.setAlpha(0.5f);
+            return;
+        } else {
+            mBabyImageView.setAlpha(1.0f);
+        }
+
         int resourceId;
         switch (direction) {
             case Utils.POSE_FACEUP:

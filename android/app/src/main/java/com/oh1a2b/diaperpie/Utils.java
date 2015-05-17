@@ -10,6 +10,7 @@ import android.util.Log;
 public class Utils {
     private static String TAG = "Utils";
 
+    public static final int POSE_MISSING = -1;
     public static final int POSE_FACEUP = 0;
     public static final int POSE_FACEDOWN = 1;
     public static final int POSE_STANDING = 2;
