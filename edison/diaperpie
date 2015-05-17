@@ -147,6 +147,12 @@ def send_to_gcm(s_data):
     except urllib2.HTTPError as e:
         logging.error('Failed to push notification, e: %s', e)
 
+def dummy_terminate_request():
+    try:
+        urllib2.urlopen('http://127.0.0.1:5678').read()
+    except urllib2.HTTPError as e:
+        pass
+
 def signal_handler(signal, frame):
     global terminate
     logging.info('Terminating threads...')
@@ -213,15 +219,15 @@ if __name__ == "__main__":
     # sensor status
     sensor_stat = [0] * 3
 
+    if ENABLE_HTTP:
+        thread_web = threading.Thread(target = run_server)
+        thread_web.start()
+
     acc = Accelerometer()
 
     try:
         thread_acc = threading.Thread(target = acc.update)
         thread_acc.start()
-
-        if ENABLE_HTTP:
-            thread_web = threading.Thread(target = run_server)
-            thread_web.start()
 
         # main loop to iterate through sensors
         while not terminate:
@@ -244,6 +250,7 @@ if __name__ == "__main__":
         acc.terminate()
         thread_acc.join()
         if ENABLE_HTTP:
+            dummy_terminate_request()
             thread_web.join()
     except Exception, e:
         logging.error("Exception : %s " % e)
