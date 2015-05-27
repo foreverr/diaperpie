@@ -18,7 +18,7 @@ public class Utils {
     public static final int POSE_SIDERIGHT = 4;
     public static final int POSE_SIDELEFT = 5;
 
-    public static final int TEMPERATURE_THRESHOLD = 38;
+    public static final int TEMPERATURE_THRESHOLD = 30;
 
     public static final int NOTIFICATION_ID_WARNING_POSE = 100;
     public static final int NOTIFICATION_ID_WARNING_WET = 101;

@@ -232,7 +232,7 @@ public class MainActivity extends Activity {
                     //Log.d(TAG, "Direction: " + direction + ", wet: " + wet);
                     setBabyImage(direction, wet);
                     mPrevRecordTime = -1;
-                    appendSensorData(getRandom(4, 35), wet);
+                    appendSensorData(getRandom(5, 26), wet);
                     //setBabyImage(Utils.POSE_MISSING, 0);
                 }
             });
