@@ -39,6 +39,7 @@ import com.google.android.gms.gcm.GoogleCloudMessaging;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 
 public class MainActivity extends Activity {
@@ -52,7 +53,8 @@ public class MainActivity extends Activity {
     private static final String SENDER_ID = "351837143960";
 
     private static final String PREF_BLE = "ble";
-    private static final int MAX_TEMPERRATURE_COUNT = 10;
+    private static final int MAX_TEMPERATURE_COUNT = 10;
+    private static final int MAX_TEMPERATURE_HISTORY = 30;
 
     private static final int REQUEST_ENABLE_BT = 1;
 
@@ -77,6 +79,9 @@ public class MainActivity extends Activity {
     private String mGcmRegId;
     private long mPrevRecordTime = 0;
     private IntentFilter mBTSPPIntentFilter;
+    private ArrayList<String> mChartXValue;
+    private ArrayList<Float> mChartYValue;
+    private ArrayList<Integer> mChartYWet;
 
     private final BroadcastReceiver mBTSPPEventReceiver = new BroadcastReceiver() {
         @Override
@@ -193,6 +198,10 @@ public class MainActivity extends Activity {
         mChart.setData(data);
         mChartLinearLayout.addView(mChart);
 
+        mChartXValue = new ArrayList<>();
+        mChartYValue = new ArrayList<>();
+        mChartYWet = new ArrayList<>();
+
         // connect to paired device if exist
         mDeviceName = mContext.getSharedPreferences(PREF_BLE, 0).getString(Utils.EXTRA_KEY_DEVICE_NAME, null);
         mDeviceAddress = mContext.getSharedPreferences(PREF_BLE, 0).getString(Utils.EXTRA_KEY_DEVICE_ADDRESS, null);
@@ -218,12 +227,13 @@ public class MainActivity extends Activity {
             mBabyImageView.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    //int direction = (int) (Math.random() * 10) % 6;
-                    //int wet = (int) (Math.random() * 10) % 2;
+                    int direction = (int) (Math.random() * 10) % 6;
+                    int wet = (int) (Math.random() * 10) % 2;
                     //Log.d(TAG, "Direction: " + direction + ", wet: " + wet);
-                    //setBabyImage(direction, wet);
+                    setBabyImage(direction, wet);
                     mPrevRecordTime = -1;
-                    appendSensorData(getRandom(2, 35), 0);
+                    appendSensorData(getRandom(4, 35), wet);
+                    //setBabyImage(Utils.POSE_MISSING, 0);
                 }
             });
         }
@@ -455,9 +465,33 @@ public class MainActivity extends Activity {
             SimpleDateFormat df = new SimpleDateFormat("HH:mm");
             String formattedDate = df.format(c.getTime());
 
-            data.addXValue(formattedDate);
-            data.addEntry(new Entry(temp, set.getEntryCount()), 0);
-            mChart.setVisibleXRange(MAX_TEMPERRATURE_COUNT);
+            mChartXValue.add(formattedDate);
+            mChartYValue.add(temp);
+            mChartYWet.add(wet);
+            if (mChartXValue.size() > MAX_TEMPERATURE_HISTORY) {
+                mChartXValue.remove(0);
+                mChartYValue.remove(0);
+                mChartYWet.remove(0);
+            }
+
+            while (data.getXValCount() > 0) {
+                data.removeEntry(0, 0);
+                data.removeXValue(0);
+            }
+            int[] colors = new int[mChartXValue.size()];
+            for (int i = 0; i < mChartXValue.size(); i++) {
+                data.addXValue(mChartXValue.get(i));
+                data.addEntry(new Entry(mChartYValue.get(i), i), 0);
+                if (mChartYValue.get(i) >= Utils.TEMPERATURE_THRESHOLD) {
+                    colors[i] = Color.RED;
+                } else if (mChartYWet.get(i) > 0) {
+                    colors[i] = Color.YELLOW;
+                } else {
+                    colors[i] = Color.WHITE;
+                }
+            }
+            set.setCircleColors(colors);
+            mChart.setVisibleXRange(MAX_TEMPERATURE_COUNT);
             // always try to move to latest entry
             mChart.moveViewToX(data.getXValCount());
             mChart.notifyDataSetChanged();
