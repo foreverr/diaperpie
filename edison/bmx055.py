@@ -19,7 +19,7 @@ class water_sensor:
     def get(self):
         wet = self.get2()
         if (wet > 10):
-            self.Count = selfCount + 1
+            self.Count = self.Count + 1
             if (self.Count >= 3):
                 return 100
         else:
