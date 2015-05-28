@@ -3,9 +3,10 @@ Description=SPP Service
 After=btup.service
 
 [Service]
-Type=forking
+Type=idle
+RamainAfterExit=true
 ExecStartPre=/bin/rm -f /var/run/sppd.pid
-ExecStart=/usr/bin/python /opt/diaperpie/SPP-loopback.py
+ExecStart=/usr/bin/python /opt/diaperpie/SPP-loopback.py &
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/var/run/sppd.pid
 Restart=always
