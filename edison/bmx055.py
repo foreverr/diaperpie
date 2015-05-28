@@ -11,10 +11,20 @@ ADR_BMA2x2=0x18
 ADR_BMM055=0x10
 
 class water_sensor:
+    Count=0
     def __init__(self):
         self.pin=m.Aio(1)   #A1 pin
-    def get(self):
+    def get2(self):
         return self.pin.read()
+    def get(self):
+        wet = self.get2()
+        if (wet > 10):
+            self.Count = selfCount + 1
+            if (self.Count >= 3):
+                return 100
+        else:
+            self.Count = 0
+        return 0;
 
 class temp_sensor:
     def __init__(self):
