@@ -285,20 +285,28 @@ if __name__ == "__main__":
     history_data = [['Time', 'Temperature(Celsius)', 'Wet', 'Wrong posture']]
     acc = Accelerometer()
 
+    # facing down, upside down
+    wrong_postures = (1,3)
+
+    wet_record = [False]*5
+
     try:
         thread_acc = threading.Thread(target = acc.update)
         thread_acc.start()
 
         # main loop to iterate through sensors
         while not terminate:
-            tmp = acc.get_posture(), 1 if sensor_w.get() > threshold_wet else 0, sensor_temp.get()
+            wet_record.pop(0)
+            wet_record.append(sensor_w.get() > threshold_wet)
+
+            tmp = acc.get_posture(), 1 if all(wet_record) else 0, sensor_temp.get()
             # only send when there's difference
             if tmp != sensor_stat:
                 str_stat = '%s,%s,%.3f' % tuple(tmp)
                 if ENABLE_BLE:
                     send_to_ble(str_stat)
                 # send when facing down, upside down, wet or temp > 38
-                if ENABLE_GCM and (tmp[0] == 1 or tmp[0] == 3 or tmp[1] == 1 or tmp[2] >= 38):
+                if ENABLE_GCM and (tmp[0] in wrong_postures or tmp[2] >= 38):
                     send_to_gcm(str_stat)
                 with open('/tmp/sensors', 'w') as f:
                     f.write(str_stat)
@@ -310,7 +318,7 @@ if __name__ == "__main__":
             if history_data[-1][0] == ts:
                 history_data[-1][1] = max(sensor_stat[2], history_data[-1][1])
                 history_data[-1][2] = max(sensor_stat[1], history_data[-1][2])
-                history_data[-1][3] = max(5 if sensor_stat[0] == 1 or sensor_stat[0] == 3 else 0, history_data[-1][3])
+                history_data[-1][3] = max(5 if sensor_stat[0] in wrong_postures else 0, history_data[-1][3])
             else:
                 history_data.append([ts, sensor_stat[2], 5 if sensor_stat[1] else 0, 5 if sensor_stat[0] == 1 or sensor_stat[0] == 3 else 0])
 #            logging.debug(str(history_data[-1]))
