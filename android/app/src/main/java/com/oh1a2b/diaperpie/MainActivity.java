@@ -182,7 +182,7 @@ public class MainActivity extends Activity {
         YAxis leftAxis = mChart.getAxisLeft();
         leftAxis.setDrawGridLines(true);
         leftAxis.setStartAtZero(false);
-        leftAxis.setAxisMaxValue(45.0f);
+        leftAxis.setAxisMaxValue(40.0f);
         leftAxis.setAxisMinValue(20.0f);
 
         XAxis xAxis = mChart.getXAxis();
