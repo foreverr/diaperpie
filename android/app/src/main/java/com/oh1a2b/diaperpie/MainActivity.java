@@ -148,9 +148,7 @@ public class MainActivity extends Activity {
         mConnectionStatusTextView = (TextView) findViewById(R.id.connection_status_textview);
         mChartLinearLayout = (LinearLayout) findViewById(R.id.chart_linearlayout);
 
-        final BluetoothManager bluetoothManager =
-                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        mBluetoothAdapter = bluetoothManager.getAdapter();
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         // Checks if Bluetooth is supported on the device.
         if (mBluetoothAdapter == null) {
